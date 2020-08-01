@@ -53,7 +53,9 @@ type Course struct {
 
 func courseHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("Accessed Courses")
-	const connStr = "sslmode=disable user=vysr dbname=vysr"
+	//we'll have to use a dotfile to access the password but this is just to see if it works
+	// const connStr = "sslmode=disable user=vysr password=aPassWord dbname=vysr"
+	const connStr = "postgres://vysr:aPassWord@localhost:5432/vysr?sslmode=disable"
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -64,6 +66,10 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 
 	//this'll have to be long until I re-write this
 	rows, err := db.Query("SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated FROM public.courses")
+	//Once we enable the ability to query the database directy without pulling the whole thing down, we'll have to granularlize this.
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	enc := json.NewEncoder(w)
 
