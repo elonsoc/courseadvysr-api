@@ -53,7 +53,7 @@ type Course struct {
 
 func courseHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("Accessed Courses")
-	const connStr = "sslmode=disable user=jumarmartin dbname=vysr"
+	const connStr = "sslmode=disable user=vysr dbname=vysr"
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
