@@ -37,8 +37,8 @@ func GenerateKey(username string) (string, error) {
 	return token, err
 }
 
-//VerifyKey verifies if the given token matches
-func VerifyKey(token string) error {
+//verifyKey verifies if the given token matches
+func verifyKey(token string) error {
 	var newJSONToken paseto.JSONToken
 	var newFooter string
 
@@ -48,4 +48,17 @@ func VerifyKey(token string) error {
 		return err
 	}
 	return err
+}
+
+//CheckToken verifies that the key is what it say it is
+//I'm not sure why I extracted this, but I did.
+func CheckToken(token string) error {
+
+	err := verifyKey(token)
+	if err != nil {
+		log.Printf(err.Error())
+		return err
+	}
+
+	return nil
 }
