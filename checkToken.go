@@ -6,7 +6,7 @@ import (
 	"log"
 )
 
-func checkToken(token string) error {
+func CheckToken(token string) error {
 
 	err := VerifyKey(token)
 	if err != nil {

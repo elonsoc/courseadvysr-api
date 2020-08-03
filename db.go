@@ -22,6 +22,8 @@ I hope.
 */
 
 //This is probably illegal relax I'll fix it later man
+//DEV: Also, we need to find a better way to understand the difference between dev
+//build and prod build for golang
 const connStr = "postgres://vysr:aPassWord@localhost:5432/vysr?sslmode=disable"
 
 //GetHash returns the hashed password stored for the specified user
@@ -52,7 +54,7 @@ func GetHash(username string) (string, error) {
 
 		Me: "Look at passwords.go"
 	*/
-	err = db.QueryRow("SELECT password FROM users.users where username = $1",
+	err = db.QueryRow("SELECT password FROM public.users where username = $1",
 		username).Scan(&hash)
 
 	if err != nil {
