@@ -142,12 +142,12 @@ func SearchCourses(query SearchQuery) []Course {
 		//TODO: not handling errors rn
 		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1)`
 		reCourseSub := regexp.MustCompile(`[A-Z]{3}`)
-		reCourseNum := regexp.MustCompile(`[1-9]{3}`)
+		reCourseNum := regexp.MustCompile(`[0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
 		courseSubNumStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber" = $2)`
 
-		reCourseSubNum := regexp.MustCompile(`[A-Z]{3} [1-9]{3}`)
+		reCourseSubNum := regexp.MustCompile(`[A-Z]{3} [0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
 		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT LIKE $1`
