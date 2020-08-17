@@ -104,6 +104,7 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func refreshHandler(w http.ResponseWriter, r *http.Request) {
+	//TODO: handle refreshes and stop being a nerd and allowing 5hrs on a single log-in.
 	c, err := r.Cookie("token")
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -119,9 +120,24 @@ func refreshHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	err = CheckToken(c.Value)
+	if err != nil {
+
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	//wrt to the check, we have to make sure that we store this token and who it belongs to make sure it belongs to the right person.
+
 	var info SearchQuery
 
-	err := json.NewDecoder(r.Body).Decode(&info)
+	err = json.NewDecoder(r.Body).Decode(&info)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
