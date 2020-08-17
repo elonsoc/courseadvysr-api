@@ -5,6 +5,8 @@ package main
 import (
 	"database/sql"
 	"log"
+	"regexp"
+	"strings"
 
 	//PostgreSQL driver
 	"github.com/lib/pq"
@@ -41,7 +43,10 @@ func GetHash(username string) (string, error) {
 	*/
 	defer db.Close()
 
-	var hash string
+	type Hash struct {
+		Hash    string
+		IsValid bool
+	}
 
 	/*
 		weird note.
@@ -54,15 +59,21 @@ func GetHash(username string) (string, error) {
 
 		Me: "Look at passwords.go"
 	*/
-	err = db.QueryRow("SELECT password FROM public.users where username = $1",
-		username).Scan(&hash)
+
+	var requestedHash Hash
+	err = db.QueryRow("SELECT password,\"isValid\" FROM public.users where username = $1",
+		username).Scan(&requestedHash.Hash, &requestedHash.IsValid)
 
 	if err != nil {
 		log.Println(err)
 		return "", err
 	}
 
-	return hash, err
+	if requestedHash.IsValid != true {
+		return "", err
+	}
+
+	return requestedHash.Hash, err
 
 }
 
@@ -101,7 +112,121 @@ func GetCourses() []Course {
 		returnCourses = append(returnCourses, course)
 	}
 
-	selection := returnCourses
+	return returnCourses
+}
 
-	return selection
+func SearchCourses(query SearchQuery) []Course {
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Close()
+	/*
+		SELECT * FROM "public"."courses" WHERE ("coursenumber" = '111') AND ("coursesubject" = 'CHM') ORDER BY "courseregistrationnumber" LIMIT 150 OFFSET 0;
+	*/
+	var someQuery []string
+	if strings.Contains(query.Query, ",") {
+		someQuery = strings.Split(query.Query, ",")
+	} else {
+		someQuery = append(someQuery, query.Query)
+	}
+
+	var selectedCourses []Course
+	for i := range someQuery {
+		var course Course
+
+		//TODO: SQL INJECTION SITE HERE!
+		query := strings.TrimSpace(someQuery[i])
+
+		//TODO: not handling errors rn
+		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1)`
+		reCourseSub := regexp.MustCompile(`[A-Z]{3}`)
+		reCourseNum := regexp.MustCompile(`[1-9]{3}`)
+
+		//TODO: not handling errors rn but honestly I should but whatever lmao
+		courseSubNumStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber" = $2)`
+
+		reCourseSubNum := regexp.MustCompile(`[A-Z]{3} [1-9]{3}`)
+
+		//TODO: not handling errors rn but honestly I should but whatever lmao
+		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT LIKE $1`
+
+		reCourseTitle := regexp.MustCompile(`^(([^A-Z].{2}|.[^A-Z].|.{2}[^A-Z]).*|.{0,2})$`)
+
+		if query != "" {
+
+			//matches course subject lookup e.g. "CHM"
+			if reCourseSub.Match([]byte(query)) {
+				log.Print(string(query))
+				rows, err := db.Query(courseSubStmt, query)
+				if err != nil {
+					log.Print(err)
+				}
+
+				for rows.Next() {
+					rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
+						&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
+						&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
+						pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+						&course.MeetingRoom, &course.Faculty, &course.Credits,
+						&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
+
+					log.Print(course)
+
+					selectedCourses = append(selectedCourses, course)
+				}
+			}
+
+			//matches course subject and specific course number e.g. "CHM 111"
+			if reCourseSubNum.Match([]byte(query)) {
+				courseSub := reCourseSub.Find([]byte(query))
+				courseNum := reCourseNum.Find([]byte(query))
+
+				courseNumString := string(courseNum)
+				courseSubString := string(courseSub)
+
+				rows, err := db.Query(courseSubNumStmt, courseSubString, courseNumString)
+				if err != nil {
+					log.Print(err)
+				}
+
+				for rows.Next() {
+
+					rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
+						&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
+						&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
+						pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+						&course.MeetingRoom, &course.Faculty, &course.Credits,
+						&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
+
+					selectedCourses = append(selectedCourses, course)
+				}
+			}
+
+			//matches course title w/o sub or number e.g. "Chemistry III"
+			if reCourseTitle.Match([]byte(query)) {
+
+				rows, err := db.Query(courseTitleStmt, "%"+query+"%")
+				if err != nil {
+					log.Print(err)
+				}
+
+				for rows.Next() {
+					rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
+						&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
+						&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
+						pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+						&course.MeetingRoom, &course.Faculty, &course.Credits,
+						&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
+
+					selectedCourses = append(selectedCourses, course)
+				}
+			}
+		}
+
+	}
+
+	return selectedCourses
+
 }

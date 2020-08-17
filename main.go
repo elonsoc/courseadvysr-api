@@ -14,14 +14,14 @@ import (
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/courses", courseHandler).Methods("GET")
-	//We need to also accept the OPTIONS method or we get red stop sign
 	r.HandleFunc("/login", loginHandler).Methods("POST")
+	r.HandleFunc("/refresh", refreshHandler).Methods("POST")
+	r.HandleFunc("/search", searchHandler).Methods("POST")
 
+	//DEV: this will be removed once I figure out a better way to have a dev version
 	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com", "https://courseadvysr.com", "http://localhost:3000"})
 	allowCredentials := handlers.AllowCredentials()
 	allowedHeaders := handlers.AllowedHeaders([]string{"content-type", "X-Requested-With", "Origin", "Accept", "X-PINGOTHER"})
-
-	//DEV: this will be removed once I figure out a better way to have a dev version
 
 	srv := &http.Server{
 		Handler:      handlers.CORS(allowedOrigins, allowedHeaders, allowCredentials)(r),
@@ -35,12 +35,8 @@ func main() {
 
 }
 
-type loginInformation struct {
-	Username, Password string
-}
-
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	var info loginInformation
+	var info LoginInformation
 
 	err := json.NewDecoder(r.Body).Decode(&info)
 
@@ -70,7 +66,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if response {
 
 		token, _ := GenerateKey(info.Username)
-		expTime := time.Now().Add(5 * time.Minute)
+		//TODO: actually stop being lazy and implement a refresh timer
+		expTime := time.Now().Add(5 * time.Hour)
 
 		http.SetCookie(w, &http.Cookie{Name: "token",
 			Value: token, Path: "/", Expires: expTime})
@@ -104,4 +101,36 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 	returnedInfo := GetCourses()
 
 	enc.Encode(returnedInfo)
+}
+
+func refreshHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	err = CheckToken(c.Value)
+	if err != nil {
+
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+}
+
+func searchHandler(w http.ResponseWriter, r *http.Request) {
+	var info SearchQuery
+
+	err := json.NewDecoder(r.Body).Decode(&info)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	queryReutrns := SearchCourses(info)
+
+	enc := json.NewEncoder(w)
+
+	enc.Encode(queryReutrns)
+
 }

@@ -20,3 +20,11 @@ type Course struct {
 	MaxStudents              int      `json:"maxStudents"`
 	TimeUpdated              float32  `json:"timeUpdated"`
 }
+
+type LoginInformation struct {
+	Username, Password string
+}
+
+type SearchQuery struct {
+	Query string
+}
