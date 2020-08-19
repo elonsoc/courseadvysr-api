@@ -15,6 +15,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/courses", courseHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST")
+	r.HandleFunc("/register", registerHandler).Methods("POST")
 	r.HandleFunc("/refresh", refreshHandler).Methods("POST")
 	r.HandleFunc("/search", searchHandler).Methods("POST")
 
@@ -36,9 +37,9 @@ func main() {
 }
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	var info LoginInformation
+	var creds UserCredentials
 
-	err := json.NewDecoder(r.Body).Decode(&info)
+	err := json.NewDecoder(r.Body).Decode(&creds)
 
 	if err != nil {
 		w.WriteHeader(http.StatusNotAcceptable)
@@ -48,14 +49,14 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	//We expect only a username and password to be sent to us.
 
-	if info.Password == "" || info.Username == "" {
+	if creds.Password == "" || creds.Username == "" {
 		w.WriteHeader(http.StatusNotAcceptable)
 		return
 	}
 
 	//we'll need to verify/clear/not screw around with sql injections.
 
-	response, err := CheckPasswordHash(info.Password, info.Username)
+	response, err := CheckPasswordHash(creds.Password, creds.Username)
 
 	if err != nil {
 		log.Print(err)
@@ -65,7 +66,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if response {
 
-		token, _ := GenerateKey(info.Username)
+		token, _ := GenerateKey(creds.Username)
 		//TODO: actually stop being lazy and implement a refresh timer
 		expTime := time.Now().Add(5 * time.Hour)
 
@@ -77,6 +78,25 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func registerHandler(w http.ResponseWriter, r *http.Request) {
+	var creds RegisteringCredentials
+
+	err := json.NewDecoder(r.Body).Decode(&creds)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Print(err)
+		return
+	}
+
+	if creds.Password == "" || creds.Username == "" || creds.Email == "" {
+		w.WriteHeader(http.StatusNotAcceptable)
+		return
+	}
+
+	RegisterStudent(creds.Username, creds.Password, creds.Email)
 }
 
 func courseHandler(w http.ResponseWriter, r *http.Request) {

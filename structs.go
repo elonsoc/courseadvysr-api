@@ -21,8 +21,12 @@ type Course struct {
 	TimeUpdated              float32  `json:"timeUpdated"`
 }
 
-type LoginInformation struct {
+type UserCredentials struct {
 	Username, Password string
+}
+
+type RegisteringCredentials struct {
+	Username, Password, Email string
 }
 
 type SearchQuery struct {

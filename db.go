@@ -115,6 +115,26 @@ func GetCourses() []Course {
 	return returnCourses
 }
 
+func RegisterStudent(username string, password string, email string) (bool, error) {
+	db, err := sql.Open("postgres", connStr)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Close()
+
+	_, err = db.Exec(`INSERT INTO "public"."users" ("username","password","email") VALUES ($1, $2, $3)`, username, GeneratePasswordHash(password), email)
+
+	if err != nil {
+		log.Print(err)
+		return false, err
+	}
+
+	return true, err
+
+}
+
 func SearchCourses(query SearchQuery) []Course {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
