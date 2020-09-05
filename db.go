@@ -26,7 +26,7 @@ I hope.
 //This is probably illegal relax I'll fix it later man
 //DEV: Also, we need to find a better way to understand the difference between dev
 //build and prod build for golang
-const connStr = "postgres://vysr:aPassWord@localhost:5432/vysr?sslmode=disable"
+const connStr = "postgres://vysr@localhost:5432/vysr?sslmode=disable"
 
 //GetHash returns the hashed password stored for the specified user
 func GetHash(username string) (string, error) {
@@ -37,7 +37,6 @@ func GetHash(username string) (string, error) {
 	}
 
 	/*
-
 		I'm not sure if I should close after being done with this respective
 		query or not. Will have to read up.
 	*/
@@ -115,7 +114,8 @@ func GetCourses() []Course {
 	return returnCourses
 }
 
-func RegisterStudent(username string, password string, email string) (bool, error) {
+//RegisterUser registers (but does not validate them) when given new credentials
+func RegisterUser(username string, password string, email string) (bool, error) {
 	db, err := sql.Open("postgres", connStr)
 
 	if err != nil {
@@ -135,6 +135,7 @@ func RegisterStudent(username string, password string, email string) (bool, erro
 
 }
 
+//SearchCourses takes a query and returns a slice of courses that meet the query
 func SearchCourses(query SearchQuery) []Course {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -143,7 +144,9 @@ func SearchCourses(query SearchQuery) []Course {
 
 	defer db.Close()
 	/*
-		SELECT * FROM "public"."courses" WHERE ("coursenumber" = '111') AND ("coursesubject" = 'CHM') ORDER BY "courseregistrationnumber" LIMIT 150 OFFSET 0;
+		SELECT * FROM "public"."courses" WHERE ("coursenumber" = '111') AND
+		("coursesubject" = 'CHM') ORDER BY "courseregistrationnumber"
+		LIMIT 150 OFFSET 0;
 	*/
 	var someQuery []string
 	if strings.Contains(query.Query, ",") {
@@ -153,6 +156,7 @@ func SearchCourses(query SearchQuery) []Course {
 	}
 
 	var selectedCourses []Course
+	//TODO: might want to refactor to clean up the tabulation
 	for i := range someQuery {
 		var course Course
 
@@ -206,19 +210,33 @@ func SearchCourses(query SearchQuery) []Course {
 				courseNumString := string(courseNum)
 				courseSubString := string(courseSub)
 
-				rows, err := db.Query(courseSubNumStmt, courseSubString, courseNumString)
+				rows, err :=
+					db.Query(courseSubNumStmt,
+						courseSubString,
+						courseNumString)
 				if err != nil {
 					log.Print(err)
 				}
 
 				for rows.Next() {
 
-					rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
-						&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
-						&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
-						pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
-						&course.MeetingRoom, &course.Faculty, &course.Credits,
-						&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
+					rows.Scan(&course.TermCode,
+						&course.SectionStatus,
+						&course.CourseTitle,
+						&course.CourseSubject,
+						&course.CourseSection,
+						&course.CourseNumber,
+						&course.CourseRegistrationNumber,
+						pq.Array(&course.MeetingDates),
+						pq.Array(&course.MeetingDays),
+						pq.Array(&course.MeetingTimes),
+						&course.MeetingBuilding,
+						&course.MeetingRoom,
+						&course.Faculty,
+						&course.Credits,
+						&course.CurrStudents,
+						&course.MaxStudents,
+						&course.TimeUpdated)
 
 					selectedCourses = append(selectedCourses, course)
 				}
@@ -248,5 +266,93 @@ func SearchCourses(query SearchQuery) []Course {
 	}
 
 	return selectedCourses
+
+}
+
+//CommitSelectedCourses takes a slice of CRNs and commits them to the user_courses db
+func CommitSelectedCourses(courses []string, username string) (bool, error) {
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer db.Close()
+
+	//TODO: We don't check for already present course
+	for _, crn := range courses {
+		res, err := db.Exec(`INSERT INTO "public"."user_courses" ("username", "course") VALUES ($1,$2)`, username, crn)
+		log.Print(res)
+		if err != nil {
+			log.Print(err)
+
+		}
+	}
+
+	return true, nil
+}
+
+//GetSelectedCourses returns the selected courses for a given user
+func GetSelectedCourses(username string) ([]Course, error) {
+	var returnCourses []Course
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+		return returnCourses, err
+	}
+
+	defer db.Close()
+
+	rows, err := db.Query(`
+		SELECT
+			termcode,
+			sectionstatus,
+			coursetitle,
+			coursesubject,
+			coursesection,
+			coursenumber,
+			courseregistrationnumber,
+			meetingdates,
+			meetingdays,
+			meetingtimes,
+			meetingbuilding,
+			meetingroom,
+			faculty,
+			credits,
+			currstudents,
+			maxstudents,
+			timeupdated
+		FROM
+			user_courses
+		INNER JOIN 
+			courses 
+		ON 
+			courses.courseregistrationnumber = user_courses.course
+		WHERE
+			user_courses.username = $1`,
+		username)
+
+	if err != nil {
+		log.Print(err)
+		return returnCourses, err
+	}
+
+	var course Course
+	for rows.Next() {
+
+		//I hope to be able to map this away but it requires some cute stuff
+		//because we use pq.Array unless we map pq.Array and access it weirdly
+		//that isn't cool
+		rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
+			&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
+			&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
+			pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+			&course.MeetingRoom, &course.Faculty, &course.Credits,
+			&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
+
+		returnCourses = append(returnCourses, course)
+	}
+
+	return returnCourses, err
 
 }

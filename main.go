@@ -18,6 +18,8 @@ func main() {
 	r.HandleFunc("/register", registerHandler).Methods("POST")
 	r.HandleFunc("/refresh", refreshHandler).Methods("POST")
 	r.HandleFunc("/search", searchHandler).Methods("POST")
+	r.HandleFunc("/commit", commitCoursesHandler).Methods("POST")
+	r.HandleFunc("/commit", selectedCoursesHandler).Methods("GET")
 
 	//DEV: this will be removed once I figure out a better way to have a dev version
 	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com", "https://courseadvysr.com", "http://localhost:3000"})
@@ -96,7 +98,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RegisterStudent(creds.Username, creds.Password, creds.Email)
+	RegisterUser(creds.Username, creds.Password, creds.Email)
 }
 
 func courseHandler(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +108,7 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = CheckToken(c.Value)
+	_, err = CheckToken(c.Value)
 	if err != nil {
 
 		w.WriteHeader(http.StatusUnauthorized)
@@ -131,7 +133,7 @@ func refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = CheckToken(c.Value)
+	_, err = CheckToken(c.Value)
 	if err != nil {
 
 		w.WriteHeader(http.StatusUnauthorized)
@@ -146,7 +148,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = CheckToken(c.Value)
+	_, err = CheckToken(c.Value)
 	if err != nil {
 
 		w.WriteHeader(http.StatusUnauthorized)
@@ -163,10 +165,64 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queryReutrns := SearchCourses(info)
+	queryReturns := SearchCourses(info)
 
 	enc := json.NewEncoder(w)
 
-	enc.Encode(queryReutrns)
+	enc.Encode(queryReturns)
+}
+
+func commitCoursesHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	var username string
+	username, err = CheckToken(c.Value)
+	if err != nil {
+
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var courseSelections []string
+
+	err = json.NewDecoder(r.Body).Decode(&courseSelections)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	commit, err := CommitSelectedCourses(courseSelections, username)
+
+	if commit != true || err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
+func selectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+
+	var username string
+	username, err = CheckToken(c.Value)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+	var courseSelections []Course
+
+	courseSelections, err = GetSelectedCourses(username)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	enc := json.NewEncoder(w)
+	enc.Encode(courseSelections)
 
 }

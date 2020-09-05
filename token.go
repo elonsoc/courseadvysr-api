@@ -38,27 +38,27 @@ func GenerateKey(username string) (string, error) {
 }
 
 //verifyKey verifies if the given token matches
-func verifyKey(token string) error {
+func verifyKey(token string) (string, error) {
 	var newJSONToken paseto.JSONToken
 	var newFooter string
 
 	err := paseto.NewV2().Verify(token, publicKey, &newJSONToken, &newFooter)
 	if err != nil {
 		log.Println(err)
-		return err
 	}
-	return err
+
+	return newJSONToken.Get("user"), err
 }
 
 //CheckToken verifies that the key is what it say it is
 //I'm not sure why I extracted this, but I did.
-func CheckToken(token string) error {
+func CheckToken(token string) (string, error) {
 
-	err := verifyKey(token)
+	username, err := verifyKey(token)
 	if err != nil {
-		log.Printf(err.Error())
-		return err
+		log.Print(err)
+		return username, err
 	}
 
-	return nil
+	return username, nil
 }
