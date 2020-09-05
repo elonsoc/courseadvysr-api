@@ -20,6 +20,7 @@ func main() {
 	r.HandleFunc("/search", searchHandler).Methods("POST")
 	r.HandleFunc("/commit", commitCoursesHandler).Methods("POST")
 	r.HandleFunc("/commit", selectedCoursesHandler).Methods("GET")
+	r.HandleFunc("/commit", deleteSelectedCoursesHandler).Methods("DELETE")
 
 	//DEV: this will be removed once I figure out a better way to have a dev version
 	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com", "https://courseadvysr.com", "http://localhost:3000"})
@@ -207,6 +208,7 @@ func selectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 
 	var username string
@@ -214,15 +216,43 @@ func selectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 	var courseSelections []Course
 
 	courseSelections, err = GetSelectedCourses(username)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	enc := json.NewEncoder(w)
 	enc.Encode(courseSelections)
 
+}
+
+func deleteSelectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	username, err := CheckToken(c.Value)
+	if err != nil {
+
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var courseSelections []string
+
+	err = json.NewDecoder(r.Body).Decode(&courseSelections)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	DeleteSelectedCourses(courseSelections, username)
 }

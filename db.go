@@ -354,5 +354,30 @@ func GetSelectedCourses(username string) ([]Course, error) {
 	}
 
 	return returnCourses, err
+}
+
+func DeleteSelectedCourses(courses []string, username string) (bool, error) {
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatal(err)
+		return false, err
+	}
+
+	defer db.Close()
+	for _, crn := range courses {
+		_, err = db.Exec(`
+			DELETE FROM 
+				"public"."user_courses" 
+			WHERE 
+				("username" = $1 AND "course" = $2)`,
+			username, crn)
+
+		if err != nil {
+			log.Print(err)
+		}
+	}
+
+	return true, err
 
 }
