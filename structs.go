@@ -32,3 +32,7 @@ type RegisteringCredentials struct {
 type SearchQuery struct {
 	Query string
 }
+
+type GenericData struct {
+	Data []string
+}

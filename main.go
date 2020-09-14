@@ -25,10 +25,11 @@ func main() {
 	//DEV: this will be removed once I figure out a better way to have a dev version
 	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com", "https://courseadvysr.com", "http://localhost:3000"})
 	allowCredentials := handlers.AllowCredentials()
+	allowMethods := handlers.AllowedMethods([]string{"GET", "POST", "DELETE"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"content-type", "X-Requested-With", "Origin", "Accept", "X-PINGOTHER"})
 
 	srv := &http.Server{
-		Handler:      handlers.CORS(allowedOrigins, allowedHeaders, allowCredentials)(r),
+		Handler:      handlers.CORS(allowMethods, allowedOrigins, allowedHeaders, allowCredentials)(r),
 		Addr:         "127.0.0.1:1337",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
@@ -177,28 +178,31 @@ func commitCoursesHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("token")
 
 	if err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	var username string
 	username, err = CheckToken(c.Value)
 	if err != nil {
-
+		log.Print(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	var courseSelections []string
+	var courseSelections GenericData
 
 	err = json.NewDecoder(r.Body).Decode(&courseSelections)
 	if err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	commit, err := CommitSelectedCourses(courseSelections, username)
+	commit, err := CommitSelectedCourses(courseSelections.Data, username)
 
 	if commit != true || err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
@@ -207,6 +211,7 @@ func selectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("token")
 
 	if err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -215,6 +220,7 @@ func selectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 	username, err = CheckToken(c.Value)
 
 	if err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -235,24 +241,26 @@ func deleteSelectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("token")
 
 	if err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
 	username, err := CheckToken(c.Value)
 	if err != nil {
-
+		log.Print(err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	var courseSelections []string
+	var courseSelections GenericData
 
 	err = json.NewDecoder(r.Body).Decode(&courseSelections)
 	if err != nil {
+		log.Print(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	DeleteSelectedCourses(courseSelections, username)
+	DeleteSelectedCourses(courseSelections.Data, username)
 }
