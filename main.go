@@ -100,7 +100,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RegisterUser(creds.Username, creds.Password, creds.Email)
+	_, err = RegisterUser(creds.Username, creds.Password, creds.Email)
+
+	if err != nil {
+		log.Print(err)
+
+		w.WriteHeader(http.StatusTeapot)
+
+	}
 }
 
 func courseHandler(w http.ResponseWriter, r *http.Request) {

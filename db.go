@@ -127,7 +127,7 @@ func RegisterUser(username string, password string, email string) (bool, error) 
 	_, err = db.Exec(`INSERT INTO "public"."users" ("username","password","email") VALUES ($1, $2, $3)`, username, GeneratePasswordHash(password), email)
 
 	if err != nil {
-		log.Print(err)
+		// log.Print(err)
 		return false, err
 	}
 
@@ -165,25 +165,25 @@ func SearchCourses(query SearchQuery) []Course {
 
 		//TODO: not handling errors rn
 		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1)`
-		reCourseSub := regexp.MustCompile(`[A-Z]{3}`)
+		reCourseSub := regexp.MustCompile(`(?i)\A[A-Z]{3}`)
 		reCourseNum := regexp.MustCompile(`[0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
 		courseSubNumStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber" = $2)`
 
-		reCourseSubNum := regexp.MustCompile(`[A-Z]{3} [0-9]{3}`)
+		reCourseSubNum := regexp.MustCompile(`(?i)\A[A-Z]{3} [0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
-		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT LIKE $1`
+		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT ILIKE $1`
 
 		reCourseTitle := regexp.MustCompile(`^(([^A-Z].{2}|.[^A-Z].|.{2}[^A-Z]).*|.{0,2})$`)
 
 		if query != "" {
 
 			//matches course subject lookup e.g. "CHM"
-			if reCourseSub.Match([]byte(query)) {
-				log.Print(string(query))
-				rows, err := db.Query(courseSubStmt, query)
+			if reCourseSub.Match([]byte(query)) && reCourseNum.Match([]byte(query)) == false && len(query) == 3 {
+
+				rows, err := db.Query(courseSubStmt, strings.ToUpper(query))
 				if err != nil {
 					log.Print(err)
 				}
@@ -200,11 +200,8 @@ func SearchCourses(query SearchQuery) []Course {
 
 					selectedCourses = append(selectedCourses, course)
 				}
-			}
-
-			//matches course subject and specific course number e.g. "CHM 111"
-			if reCourseSubNum.Match([]byte(query)) {
-				courseSub := reCourseSub.Find([]byte(query))
+			} else if reCourseSubNum.Match([]byte(query)) {
+				courseSub := reCourseSub.Find([]byte(strings.ToUpper(query)))
 				courseNum := reCourseNum.Find([]byte(query))
 
 				courseNumString := string(courseNum)
@@ -240,11 +237,9 @@ func SearchCourses(query SearchQuery) []Course {
 
 					selectedCourses = append(selectedCourses, course)
 				}
-			}
-
-			//matches course title w/o sub or number e.g. "Chemistry III"
-			if reCourseTitle.Match([]byte(query)) {
-
+			} else if reCourseTitle.Match([]byte(query)) {
+				//matches course title w/o sub or number e.g. "Chemistry III"
+				log.Println(query)
 				rows, err := db.Query(courseTitleStmt, "%"+query+"%")
 				if err != nil {
 					log.Print(err)
