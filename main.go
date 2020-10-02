@@ -100,7 +100,14 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = RegisterUser(creds.Username, creds.Password, creds.Email)
+	_, err = RegisterUser(creds.Username, creds.Password, creds.Email, creds.Referrer)
+
+	token, _ := GenerateKey(creds.Username)
+	//TODO: actually stop being lazy and implement a refresh timer
+	expTime := time.Now().Add(5 * time.Hour)
+
+	http.SetCookie(w, &http.Cookie{Name: "token",
+		Value: token, Path: "/", Expires: expTime})
 
 	if err != nil {
 		log.Print(err)
@@ -216,6 +223,7 @@ func commitCoursesHandler(w http.ResponseWriter, r *http.Request) {
 
 func selectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("token")
+	log.Print(c)
 
 	if err != nil {
 		log.Print(err)

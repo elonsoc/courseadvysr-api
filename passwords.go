@@ -64,7 +64,16 @@ func CheckPasswordHash(userPassword string, username string) (bool, error) {
 
 	match, err := comparePasswordAndHash(userPassword, passHash)
 	if err != nil {
-		log.Fatal(err)
+		/**
+			2020-10-02 Side note
+			I'm making the change from logging and exiting to kinda ignoring it
+			since I return "" for passHash in GetHash and leads to an error
+			when the account is not properly valid. I shouldn't do this.
+
+			TODO: better error handling, more centralized.
+			log.Fatal(err)
+		**/
+		return false, err
 	}
 
 	//return header based on if password matches or not

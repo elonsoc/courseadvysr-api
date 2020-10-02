@@ -26,7 +26,7 @@ type UserCredentials struct {
 }
 
 type RegisteringCredentials struct {
-	Username, Password, Email string
+	Username, Password, Email, Referrer string
 }
 
 type SearchQuery struct {

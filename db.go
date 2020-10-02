@@ -4,6 +4,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	"regexp"
 	"strings"
@@ -26,7 +27,7 @@ I hope.
 //This is probably illegal relax I'll fix it later man
 //DEV: Also, we need to find a better way to understand the difference between dev
 //build and prod build for golang
-const connStr = "postgres://vysr@localhost:5432/vysr?sslmode=disable"
+const connStr = "dbname=vysr host=/tmp/"
 
 //GetHash returns the hashed password stored for the specified user
 func GetHash(username string) (string, error) {
@@ -115,7 +116,7 @@ func GetCourses() []Course {
 }
 
 //RegisterUser registers (but does not validate them) when given new credentials
-func RegisterUser(username string, password string, email string) (bool, error) {
+func RegisterUser(username string, password string, email string, referrer string) (bool, error) {
 	db, err := sql.Open("postgres", connStr)
 
 	if err != nil {
@@ -124,12 +125,26 @@ func RegisterUser(username string, password string, email string) (bool, error) 
 
 	defer db.Close()
 
-	_, err = db.Exec(`INSERT INTO "public"."users" ("username","password","email") VALUES ($1, $2, $3)`, username, GeneratePasswordHash(password), email)
+	var referrerDoesExist bool
+	err = db.QueryRow(`select case when EXISTS (select email from undergraduates where email = $1 ) then true else false end from public.undergraduates limit 1`, referrer).Scan(&referrerDoesExist)
+
+	if err != nil {
+		log.Fatal(err)
+		return false, err
+	}
+
+	if !referrerDoesExist {
+		return false, errors.New("the given referrer does not exist")
+	}
+
+	_, err = db.Exec(`INSERT INTO "public"."users" ("username","password","email", "isValid") VALUES ($1, $2, $3, $4)`, username, GeneratePasswordHash(password), email, true)
 
 	if err != nil {
 		// log.Print(err)
 		return false, err
 	}
+
+	db.Exec(`insert into public.friends ("friend","is_friend_of") values ((select id from public.users where username = $1), (select id from public.users where email= $2))`, username, referrer)
 
 	return true, err
 
