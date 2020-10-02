@@ -3,15 +3,13 @@ package main
 //lifted from bondkeepr 2020-08-02
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"log"
 	"regexp"
 	"strings"
 
-	//PostgreSQL driver
-	"github.com/lib/pq"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v4"
 )
 
 /*
@@ -27,21 +25,23 @@ I hope.
 //This is probably illegal relax I'll fix it later man
 //DEV: Also, we need to find a better way to understand the difference between dev
 //build and prod build for golang
-const connStr = "dbname=vysr host=/tmp/"
+func openConnection() *pgx.Conn {
+	conn, err := pgx.Connect(context.Background(), "database=vysr")
+	if err != nil {
+		log.Panic(err)
+	}
+	return conn
+}
 
 //GetHash returns the hashed password stored for the specified user
 func GetHash(username string) (string, error) {
 
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	conn := openConnection()
+	defer conn.Close(context.Background())
 	/*
 		I'm not sure if I should close after being done with this respective
 		query or not. Will have to read up.
 	*/
-	defer db.Close()
 
 	type Hash struct {
 		Hash    string
@@ -61,7 +61,7 @@ func GetHash(username string) (string, error) {
 	*/
 
 	var requestedHash Hash
-	err = db.QueryRow("SELECT password,\"isValid\" FROM public.users where username = $1",
+	err := conn.QueryRow(context.Background(), "SELECT password,\"isValid\" FROM public.users where username = $1",
 		username).Scan(&requestedHash.Hash, &requestedHash.IsValid)
 
 	if err != nil {
@@ -80,15 +80,11 @@ func GetHash(username string) (string, error) {
 //GetCourses returns all the courses located in the database
 func GetCourses() []Course {
 
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer db.Close()
+	conn := openConnection()
+	defer conn.Close(context.Background())
 
 	//this'll have to be long until I re-write this
-	rows, err := db.Query("SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated FROM public.courses")
+	rows, err := conn.Query(context.Background(), "SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated FROM public.courses")
 	//Once we enable the ability to query the database directy without pulling the whole thing down, we'll have to granularlize this.
 	if err != nil {
 		log.Fatal(err)
@@ -104,8 +100,8 @@ func GetCourses() []Course {
 		//that isn't cool
 		rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
 			&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
-			&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
-			pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+			&course.CourseRegistrationNumber, &course.MeetingDates,
+			&course.MeetingDays, &course.MeetingTimes, &course.MeetingBuilding,
 			&course.MeetingRoom, &course.Faculty, &course.Credits,
 			&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
 
@@ -117,16 +113,11 @@ func GetCourses() []Course {
 
 //RegisterUser registers (but does not validate them) when given new credentials
 func RegisterUser(username string, password string, email string, referrer string) (bool, error) {
-	db, err := sql.Open("postgres", connStr)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer db.Close()
+	conn := openConnection()
+	defer conn.Close(context.Background())
 
 	var referrerDoesExist bool
-	err = db.QueryRow(`select case when EXISTS (select email from undergraduates where email = $1 ) then true else false end from public.undergraduates limit 1`, referrer).Scan(&referrerDoesExist)
+	err := conn.QueryRow(context.Background(), `select case when EXISTS (select email from undergraduates where email = $1 ) then true else false end from public.undergraduates limit 1`, referrer).Scan(&referrerDoesExist)
 
 	if err != nil {
 		log.Fatal(err)
@@ -137,14 +128,14 @@ func RegisterUser(username string, password string, email string, referrer strin
 		return false, errors.New("the given referrer does not exist")
 	}
 
-	_, err = db.Exec(`INSERT INTO "public"."users" ("username","password","email", "isValid") VALUES ($1, $2, $3, $4)`, username, GeneratePasswordHash(password), email, true)
+	_, err = conn.Exec(context.Background(), `INSERT INTO "public"."users" ("username","password","email", "isValid") VALUES ($1, $2, $3, $4)`, username, GeneratePasswordHash(password), email, true)
 
 	if err != nil {
 		// log.Print(err)
 		return false, err
 	}
 
-	db.Exec(`insert into public.friends ("friend","is_friend_of") values ((select id from public.users where username = $1), (select id from public.users where email= $2))`, username, referrer)
+	conn.Exec(context.Background(), `insert into public.friends ("friend","is_friend_of") values ((select id from public.users where username = $1), (select id from public.users where email= $2))`, username, referrer)
 
 	return true, err
 
@@ -152,12 +143,8 @@ func RegisterUser(username string, password string, email string, referrer strin
 
 //SearchCourses takes a query and returns a slice of courses that meet the query
 func SearchCourses(query SearchQuery) []Course {
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer db.Close()
+	conn := openConnection()
+	defer conn.Close(context.Background())
 	/*
 		SELECT * FROM "public"."courses" WHERE ("coursenumber" = '111') AND
 		("coursesubject" = 'CHM') ORDER BY "courseregistrationnumber"
@@ -198,7 +185,7 @@ func SearchCourses(query SearchQuery) []Course {
 			//matches course subject lookup e.g. "CHM"
 			if reCourseSub.Match([]byte(query)) && reCourseNum.Match([]byte(query)) == false && len(query) == 3 {
 
-				rows, err := db.Query(courseSubStmt, strings.ToUpper(query))
+				rows, err := conn.Query(context.Background(), courseSubStmt, strings.ToUpper(query))
 				if err != nil {
 					log.Print(err)
 				}
@@ -206,8 +193,8 @@ func SearchCourses(query SearchQuery) []Course {
 				for rows.Next() {
 					rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
 						&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
-						&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
-						pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+						&course.CourseRegistrationNumber, &course.MeetingDates,
+						&course.MeetingDays, &course.MeetingTimes, &course.MeetingBuilding,
 						&course.MeetingRoom, &course.Faculty, &course.Credits,
 						&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
 
@@ -223,7 +210,7 @@ func SearchCourses(query SearchQuery) []Course {
 				courseSubString := string(courseSub)
 
 				rows, err :=
-					db.Query(courseSubNumStmt,
+					conn.Query(context.Background(), courseSubNumStmt,
 						courseSubString,
 						courseNumString)
 				if err != nil {
@@ -239,9 +226,9 @@ func SearchCourses(query SearchQuery) []Course {
 						&course.CourseSection,
 						&course.CourseNumber,
 						&course.CourseRegistrationNumber,
-						pq.Array(&course.MeetingDates),
-						pq.Array(&course.MeetingDays),
-						pq.Array(&course.MeetingTimes),
+						&course.MeetingDates,
+						&course.MeetingDays,
+						&course.MeetingTimes,
 						&course.MeetingBuilding,
 						&course.MeetingRoom,
 						&course.Faculty,
@@ -255,7 +242,7 @@ func SearchCourses(query SearchQuery) []Course {
 			} else if reCourseTitle.Match([]byte(query)) {
 				//matches course title w/o sub or number e.g. "Chemistry III"
 				log.Println(query)
-				rows, err := db.Query(courseTitleStmt, "%"+query+"%")
+				rows, err := conn.Query(context.Background(), courseTitleStmt, "%"+query+"%")
 				if err != nil {
 					log.Print(err)
 				}
@@ -263,8 +250,8 @@ func SearchCourses(query SearchQuery) []Course {
 				for rows.Next() {
 					rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
 						&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
-						&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
-						pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+						&course.CourseRegistrationNumber, &course.MeetingDates,
+						&course.MeetingDays, &course.MeetingTimes, &course.MeetingBuilding,
 						&course.MeetingRoom, &course.Faculty, &course.Credits,
 						&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
 
@@ -282,16 +269,12 @@ func SearchCourses(query SearchQuery) []Course {
 //CommitSelectedCourses takes a slice of CRNs and commits them to the user_courses db
 func CommitSelectedCourses(courses []string, username string) (bool, error) {
 
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer db.Close()
+	conn := openConnection()
+	defer conn.Close(context.Background())
 
 	//TODO: We don't check for already present course
 	for _, crn := range courses {
-		res, err := db.Exec(`INSERT INTO "public"."user_courses" ("username", "course") VALUES ($1,$2)`, username, crn)
+		res, err := conn.Exec(context.Background(), `INSERT INTO "public"."user_courses" ("username", "course") VALUES ($1,$2)`, username, crn)
 		log.Print(res)
 		if err != nil {
 			log.Print(err)
@@ -305,15 +288,10 @@ func CommitSelectedCourses(courses []string, username string) (bool, error) {
 //GetSelectedCourses returns the selected courses for a given user
 func GetSelectedCourses(username string) ([]Course, error) {
 	var returnCourses []Course
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-		return returnCourses, err
-	}
+	conn := openConnection()
+	defer conn.Close(context.Background())
 
-	defer db.Close()
-
-	rows, err := db.Query(`
+	rows, err := conn.Query(context.Background(), `
 		SELECT
 			termcode,
 			sectionstatus,
@@ -334,9 +312,9 @@ func GetSelectedCourses(username string) ([]Course, error) {
 			timeupdated
 		FROM
 			user_courses
-		INNER JOIN 
-			courses 
-		ON 
+		INNER JOIN
+			courses
+		ON
 			courses.courseregistrationnumber = user_courses.course
 		WHERE
 			user_courses.username = $1`,
@@ -355,8 +333,8 @@ func GetSelectedCourses(username string) ([]Course, error) {
 		//that isn't cool
 		rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
 			&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
-			&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
-			pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+			&course.CourseRegistrationNumber, &course.MeetingDates,
+			&course.MeetingDays, &course.MeetingTimes, &course.MeetingBuilding,
 			&course.MeetingRoom, &course.Faculty, &course.Credits,
 			&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
 
@@ -368,18 +346,14 @@ func GetSelectedCourses(username string) ([]Course, error) {
 
 func DeleteSelectedCourses(courses []string, username string) (bool, error) {
 
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
-		return false, err
-	}
+	conn := openConnection()
+	defer conn.Close(context.Background())
 
-	defer db.Close()
 	for _, crn := range courses {
-		_, err = db.Exec(`
-			DELETE FROM 
-				"public"."user_courses" 
-			WHERE 
+		_, err := conn.Exec(context.Background(), `
+			DELETE FROM
+				"public"."user_courses"
+			WHERE
 				("username" = $1 AND "course" = $2)`,
 			username, crn)
 
@@ -388,6 +362,6 @@ func DeleteSelectedCourses(courses []string, username string) (bool, error) {
 		}
 	}
 
-	return true, err
+	return true, errors.New("")
 
 }
