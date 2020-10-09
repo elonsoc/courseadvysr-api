@@ -186,7 +186,7 @@ func SearchCourses(query SearchQuery) []Course {
 
 			//matches course subject lookup e.g. "CHM"
 			if reCourseSub.Match([]byte(aQuery)) && reCourseNum.Match([]byte(aQuery)) == false && len(aQuery) == 3 {
-
+				rows, err := conn.Query(context.Background(), courseSubStmt, strings.ToUpper(aQuery), query.Term)
 				if err != nil {
 					log.Print(err)
 				}
@@ -243,6 +243,8 @@ func SearchCourses(query SearchQuery) []Course {
 				}
 			} else if reCourseTitle.Match([]byte(aQuery)) {
 				//matches course title w/o sub or number e.g. "Chemistry III"
+				log.Println(query)
+				rows, err := conn.Query(context.Background(), courseTitleStmt, "%"+aQuery+"%", query.Term)
 				if err != nil {
 					log.Print(err)
 				}
@@ -260,15 +262,15 @@ func SearchCourses(query SearchQuery) []Course {
 			}
 		} else {
 			var course Course
-			rows, err := db.Query(getCoursesStmt, query.Term)
+			rows, err := conn.Query(context.Background(), getCoursesStmt, query.Term)
 			if err != nil {
 				log.Print(err)
 			}
 			for rows.Next() {
 				rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
 					&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
-					&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
-					pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+					&course.CourseRegistrationNumber, &course.MeetingDates,
+					&course.MeetingDays, &course.MeetingTimes, &course.MeetingBuilding,
 					&course.MeetingRoom, &course.Faculty, &course.Credits,
 					&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
 
