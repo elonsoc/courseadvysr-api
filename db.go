@@ -176,29 +176,31 @@ func SearchCourses(query SearchQuery) []Course {
 		var course Course
 
 		//TODO: SQL INJECTION SITE HERE!
-		query := strings.TrimSpace(someQuery[i])
+		aQuery := strings.TrimSpace(someQuery[i])
+
+		getCoursesStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("termcode" = $1)`
 
 		//TODO: not handling errors rn
-		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1)`
+		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("termcode" = $2)`
 		reCourseSub := regexp.MustCompile(`(?i)\A[A-Z]{3}`)
 		reCourseNum := regexp.MustCompile(`[0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
-		courseSubNumStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber" = $2)`
+		courseSubNumStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber" = $2) AND ("termcode" = $3)`
 
 		reCourseSubNum := regexp.MustCompile(`(?i)\A[A-Z]{3} [0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
-		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT ILIKE $1`
+		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT ILIKE $1 AND ("termcode" = $2)`
 
 		reCourseTitle := regexp.MustCompile(`^(([^A-Z].{2}|.[^A-Z].|.{2}[^A-Z]).*|.{0,2})$`)
 
-		if query != "" {
+		if aQuery != "" {
 
 			//matches course subject lookup e.g. "CHM"
-			if reCourseSub.Match([]byte(query)) && reCourseNum.Match([]byte(query)) == false && len(query) == 3 {
+			if reCourseSub.Match([]byte(aQuery)) && reCourseNum.Match([]byte(aQuery)) == false && len(aQuery) == 3 {
 
-				rows, err := db.Query(courseSubStmt, strings.ToUpper(query))
+				rows, err := db.Query(courseSubStmt, strings.ToUpper(aQuery), query.Term)
 				if err != nil {
 					log.Print(err)
 				}
@@ -215,9 +217,9 @@ func SearchCourses(query SearchQuery) []Course {
 
 					selectedCourses = append(selectedCourses, course)
 				}
-			} else if reCourseSubNum.Match([]byte(query)) {
-				courseSub := reCourseSub.Find([]byte(strings.ToUpper(query)))
-				courseNum := reCourseNum.Find([]byte(query))
+			} else if reCourseSubNum.Match([]byte(aQuery)) {
+				courseSub := reCourseSub.Find([]byte(strings.ToUpper(aQuery)))
+				courseNum := reCourseNum.Find([]byte(aQuery))
 
 				courseNumString := string(courseNum)
 				courseSubString := string(courseSub)
@@ -225,7 +227,8 @@ func SearchCourses(query SearchQuery) []Course {
 				rows, err :=
 					db.Query(courseSubNumStmt,
 						courseSubString,
-						courseNumString)
+						courseNumString,
+						query.Term)
 				if err != nil {
 					log.Print(err)
 				}
@@ -252,10 +255,10 @@ func SearchCourses(query SearchQuery) []Course {
 
 					selectedCourses = append(selectedCourses, course)
 				}
-			} else if reCourseTitle.Match([]byte(query)) {
+			} else if reCourseTitle.Match([]byte(aQuery)) {
 				//matches course title w/o sub or number e.g. "Chemistry III"
-				log.Println(query)
-				rows, err := db.Query(courseTitleStmt, "%"+query+"%")
+				log.Println(aQuery)
+				rows, err := db.Query(courseTitleStmt, "%"+aQuery+"%", query.Term)
 				if err != nil {
 					log.Print(err)
 				}
@@ -271,6 +274,23 @@ func SearchCourses(query SearchQuery) []Course {
 					selectedCourses = append(selectedCourses, course)
 				}
 			}
+		} else {
+			var course Course
+			rows, err := db.Query(getCoursesStmt, query.Term)
+			if err != nil {
+				log.Print(err)
+			}
+			for rows.Next() {
+				rows.Scan(&course.TermCode, &course.SectionStatus, &course.CourseTitle,
+					&course.CourseSubject, &course.CourseSection, &course.CourseNumber,
+					&course.CourseRegistrationNumber, pq.Array(&course.MeetingDates),
+					pq.Array(&course.MeetingDays), pq.Array(&course.MeetingTimes), &course.MeetingBuilding,
+					&course.MeetingRoom, &course.Faculty, &course.Credits,
+					&course.CurrStudents, &course.MaxStudents, &course.TimeUpdated)
+
+				selectedCourses = append(selectedCourses, course)
+			}
+
 		}
 
 	}
