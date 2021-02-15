@@ -117,7 +117,9 @@ func RegisterUser(username string, password string, email string, referrer strin
 	defer conn.Close(context.Background())
 
 	var referrerDoesExist bool
-	err := conn.QueryRow(context.Background(), `select case when EXISTS (select email from undergraduates where email = $1 ) then true else false end from public.undergraduates limit 1`, referrer).Scan(&referrerDoesExist)
+	err := conn.QueryRow(context.Background(), 
+	`select case when EXISTS (select email from undergraduates where email = $1 ) then true else false end from public.undergraduates limit 1`, 
+	referrer).Scan(&referrerDoesExist)
 
 	if err != nil {
 		log.Fatal(err)
@@ -150,26 +152,21 @@ func SearchCourses(query SearchQuery) []Course {
 		("coursesubject" = 'CHM') ORDER BY "courseregistrationnumber"
 		LIMIT 150 OFFSET 0;
 	*/
-	var someQuery []string
-	if strings.Contains(query.Query, ",") {
-		someQuery = strings.Split(query.Query, ",")
-	} else {
-		someQuery = append(someQuery, query.Query)
-	}
+
 
 	var selectedCourses []Course
 	//TODO: might want to refactor to clean up the tabulation
-	for i := range someQuery {
+	for i := range query.Query {
 		var course Course
 
 		//TODO: SQL INJECTION SITE HERE!
-		aQuery := strings.TrimSpace(someQuery[i])
+		aQuery := strings.TrimSpace(query.Query[i])
 
 		getCoursesStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("termcode" = $1)`
 
 		//TODO: not handling errors rn
 		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("termcode" = $2)`
-		reCourseSub := regexp.MustCompile(`(?i)\A[A-Z]{3}`)
+		reCourseSub := regexp.MustCompile(`\A[A-Z]{3,4}`)
 		reCourseNum := regexp.MustCompile(`[0-9]{3}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
@@ -185,7 +182,7 @@ func SearchCourses(query SearchQuery) []Course {
 		if aQuery != "" {
 
 			//matches course subject lookup e.g. "CHM"
-			if reCourseSub.Match([]byte(aQuery)) && reCourseNum.Match([]byte(aQuery)) == false && len(aQuery) == 3 {
+			if reCourseSub.Match([]byte(aQuery)) && reCourseNum.Match([]byte(aQuery)) == false && len(aQuery) == 3 || len(aQuery) == 4 {
 				rows, err := conn.Query(context.Background(), courseSubStmt, strings.ToUpper(aQuery), query.Term)
 				if err != nil {
 					log.Print(err)
@@ -285,7 +282,7 @@ func SearchCourses(query SearchQuery) []Course {
 
 }
 
-//CommitSelectedCourses takes a slice of CRNs and commits them to the user_courses db
+//CommitSelectedCourses takes a slice of CRNs and commits them to the user_courses table
 func CommitSelectedCourses(courses []string, username string) (bool, error) {
 
 	conn := openConnection()
@@ -293,7 +290,9 @@ func CommitSelectedCourses(courses []string, username string) (bool, error) {
 
 	//TODO: We don't check for already present course
 	for _, crn := range courses {
-		res, err := conn.Exec(context.Background(), `INSERT INTO "public"."user_courses" ("username", "course") VALUES ($1,$2)`, username, crn)
+		res, err := conn.Exec(context.Background(), 
+		`INSERT INTO "public"."user_courses" ("username", "course") VALUES ($1,$2)`, 
+		username, crn)
 		log.Print(res)
 		if err != nil {
 			log.Print(err)
@@ -361,6 +360,30 @@ func GetSelectedCourses(username string) ([]Course, error) {
 	}
 
 	return returnCourses, err
+}
+
+func GetCourseDescription(crn string) (string) {
+	var description Description
+	var courseSubject, courseNumber string
+
+	conn := openConnection()
+	defer conn.Close(context.Background())
+	
+	//This isn't exactly performant, but that's ok.
+	row := conn.QueryRow(context.Background(), 
+	`SELECT courseSubject, courseNumber from courses where courseRegistrationNumber = $1`, 
+	crn)
+	row.Scan(&courseSubject, &courseNumber)
+	row = conn.QueryRow(context.Background(), 
+	`SELECT description from coursedescriptions where courseSubject = $1 AND courseNumber = $2`, 
+	courseSubject, courseNumber)
+
+	row.Scan(&description.Description)
+
+	print(description.Description)
+
+	return description.Description
+
 }
 
 func DeleteSelectedCourses(courses []string, username string) (bool, error) {

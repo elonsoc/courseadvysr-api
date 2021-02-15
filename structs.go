@@ -30,9 +30,14 @@ type RegisteringCredentials struct {
 }
 
 type SearchQuery struct {
-	Query, Term string
+	Query []string
+	Term string
 }
 
 type GenericData struct {
 	Data []string
+}
+
+type Description struct {
+	Description string `json:"description"`
 }

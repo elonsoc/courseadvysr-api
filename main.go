@@ -13,6 +13,7 @@ import (
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/courses", courseHandler).Methods("GET")
+	r.HandleFunc("/courses/{crn}/", crnCourseHandler).Methods("GET")
 	r.HandleFunc("/login", loginHandler).Methods("POST")
 	r.HandleFunc("/register", registerHandler).Methods("POST")
 	r.HandleFunc("/refresh", refreshHandler).Methods("POST")
@@ -138,6 +139,33 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 	returnedInfo := GetCourses()
 
 	enc.Encode(returnedInfo)
+}
+
+func crnCourseHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	_, err = CheckToken(c.Value)
+	if err != nil { 
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	crn := mux.Vars(r)["crn"]
+	
+
+	if len(crn) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	enc := json.NewEncoder(w)
+	desc := GetCourseDescription(crn)
+
+	enc.Encode(desc)
+
+
 }
 
 func refreshHandler(w http.ResponseWriter, r *http.Request) {
