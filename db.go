@@ -167,12 +167,12 @@ func SearchCourses(query SearchQuery) []Course {
 		//TODO: not handling errors rn
 		courseSubStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("termcode" = $2)`
 		reCourseSub := regexp.MustCompile(`\A[A-Z]{3,4}`)
-		reCourseNum := regexp.MustCompile(`[0-9]{3}`)
+		reCourseNum := regexp.MustCompile(`[0-9]{3,4}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
 		courseSubNumStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber" = $2) AND ("termcode" = $3)`
 
-		reCourseSubNum := regexp.MustCompile(`(?i)\A[A-Z]{3} [0-9]{3}`)
+		reCourseSubNum := regexp.MustCompile(`(?i)\A[A-Z]{3,4} [0-9]{3,4}`)
 
 		//TODO: not handling errors rn but honestly I should but whatever lmao
 		courseTitleStmt := `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT ILIKE $1 AND ("termcode" = $2)`

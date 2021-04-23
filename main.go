@@ -23,13 +23,16 @@ func main() {
 	r.HandleFunc("/commit", deleteSelectedCoursesHandler).Methods("DELETE")
 
 	//DEV: this will be removed once I figure out a better way to have a dev version
-	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com", "https://courseadvysr.com", "http://localhost:3000"})
+	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com",
+	 "https://courseadvysr.com", "http://localhost:3000"})
 	allowCredentials := handlers.AllowCredentials()
 	allowMethods := handlers.AllowedMethods([]string{"GET", "POST", "DELETE"})
-	allowedHeaders := handlers.AllowedHeaders([]string{"content-type", "X-Requested-With", "Origin", "Accept", "X-PINGOTHER"})
+	allowedHeaders := handlers.AllowedHeaders([]string{"content-type", "X-Requested-With",
+	 "Origin", "Accept", "X-PINGOTHER"})
 
 	srv := &http.Server{
-		Handler:      handlers.CORS(allowMethods, allowedOrigins, allowedHeaders, allowCredentials)(r),
+		Handler:      handlers.CORS(allowMethods, allowedOrigins, allowedHeaders, 
+			allowCredentials)(r),
 		Addr:         "127.0.0.1:1337",
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
