@@ -21,17 +21,18 @@ func main() {
 	r.HandleFunc("/commit", commitCoursesHandler).Methods("POST")
 	r.HandleFunc("/commit", selectedCoursesHandler).Methods("GET")
 	r.HandleFunc("/commit", deleteSelectedCoursesHandler).Methods("DELETE")
+	r.HandleFunc("/options", getCourseOptionsHandler).Methods("GET")
 
 	//DEV: this will be removed once I figure out a better way to have a dev version
 	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com",
-	 "https://courseadvysr.com", "http://localhost:3000"})
+		"https://courseadvysr.com", "http://localhost:3000"})
 	allowCredentials := handlers.AllowCredentials()
 	allowMethods := handlers.AllowedMethods([]string{"GET", "POST", "DELETE"})
 	allowedHeaders := handlers.AllowedHeaders([]string{"content-type", "X-Requested-With",
-	 "Origin", "Accept", "X-PINGOTHER"})
+		"Origin", "Accept", "X-PINGOTHER"})
 
 	srv := &http.Server{
-		Handler:      handlers.CORS(allowMethods, allowedOrigins, allowedHeaders, 
+		Handler: handlers.CORS(allowMethods, allowedOrigins, allowedHeaders,
 			allowCredentials)(r),
 		Addr:         "127.0.0.1:1337",
 		WriteTimeout: 15 * time.Second,
@@ -152,12 +153,11 @@ func crnCourseHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = CheckToken(c.Value)
-	if err != nil { 
+	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 	crn := mux.Vars(r)["crn"]
-	
 
 	if len(crn) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -167,7 +167,6 @@ func crnCourseHandler(w http.ResponseWriter, r *http.Request) {
 	desc := GetCourseDescription(crn)
 
 	enc.Encode(desc)
-
 
 }
 
@@ -211,7 +210,11 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queryReturns := SearchCourses(info)
+	queryReturns, err := SearchCourses(info)
+	if err != nil {
+		log.Print(err)
+		return
+	}
 
 	enc := json.NewEncoder(w)
 
@@ -308,4 +311,33 @@ func deleteSelectedCoursesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	DeleteSelectedCourses(courseSelections.Data, username)
+}
+
+func getCourseOptionsHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+
+	if err != nil {
+		log.Print(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	_, err = CheckToken(c.Value)
+
+	if err != nil {
+		log.Print(err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	subj, err := getCourseSubjects()
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	log.Print(subj)
+
+	enc := json.NewEncoder(w)
+	enc.Encode(subj)
 }

@@ -21,6 +21,11 @@ type Course struct {
 	TimeUpdated              float32  `json:"timeUpdated"`
 }
 
+type CourseSubjects struct {
+	Subject string `json:"subject"`
+	Title   string `json:"title"`
+}
+
 type UserCredentials struct {
 	Username, Password string
 }
@@ -31,7 +36,7 @@ type RegisteringCredentials struct {
 
 type SearchQuery struct {
 	Query []string
-	Term string
+	Term  string
 }
 
 type GenericData struct {
