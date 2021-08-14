@@ -27,24 +27,20 @@ I hope.
 //build and prod build for golang
 
 const (
-	getCoursesStmt = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("termcode" = $1)`
+	getCoursesStmt string = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("termcode" = $1)`
 
-	//TODO: not handling errors rn
-	courseSubStmt = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("termcode" = $2)`
-	courseSubPat  = `\A[A-Z]{3,4}`
-	courseNumPat  = `[0-9]{3,4}`
+	courseSubStmt string = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("termcode" = $2)`
+	courseSubPat  string = `\A[A-Z]{3,4}`
+	courseNumPat  string = `[0-9]{3,4}`
 
-	//TODO: not handling errors rn but honestly I should but whatever lmao
+	courseSubNumStmt string = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber"::TEXT LIKE $2%) AND ("termcode" = $3)`
+	courseSubNumPat  string = `(?i)\A[A-Z]{3,4} [0-9]{3,4}`
 
-	courseSubNumStmt = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber"::TEXT LIKE $2%) AND ("termcode" = $3)`
-	courseSubNumPat  = `(?i)\A[A-Z]{3,4} [0-9]{3,4}`
+	subMajNumStmt string = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber"::TEXT LIKE $2) AND ("termcode" = $3)`
+	subMajNumPat  string = `(?i)([A-Z]{3,4}):{1}([0-4]){1}`
 
-	subMajNumStmt = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where ("coursesubject" = $1) AND ("coursenumber"::TEXT LIKE $2) AND ("termcode" = $3)`
-	subMajNumPat  = `(?i)([A-Z]{3,4}):{1}([0-4]){1}`
-
-	//TODO: not handling errors rn but honestly I should but whatever lmao
-	courseTitleStmt = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT ILIKE $1 AND ("termcode" = $2)`
-	courseTitlePat  = `^(([^A-Z].{2}|.[^A-Z].|.{2}[^A-Z]).*|.{0,2})$`
+	courseTitleStmt string = `SELECT termcode, sectionstatus, coursetitle, coursesubject, coursesection, coursenumber, courseregistrationnumber, meetingdates, meetingdays, meetingtimes, meetingbuilding, meetingroom, faculty, credits, currstudents, maxstudents, timeupdated from public.courses where "coursetitle"::TEXT ILIKE $1 AND ("termcode" = $2)`
+	courseTitlePat  string = `^(([^A-Z].{2}|.[^A-Z].|.{2}[^A-Z]).*|.{0,2})$`
 )
 
 func openConnection() *pgx.Conn {
@@ -91,7 +87,7 @@ func GetHash(username string) (string, error) {
 		return "", err
 	}
 
-	if requestedHash.IsValid != true {
+	if !requestedHash.IsValid {
 		return "", err
 	}
 
@@ -152,14 +148,22 @@ func RegisterUser(username string, password string, email string, referrer strin
 		return false, errors.New("the given referrer does not exist")
 	}
 
-	_, err = conn.Exec(context.Background(), `INSERT INTO "public"."users" ("username","password","email", "isValid") VALUES ($1, $2, $3, $4)`, username, GeneratePasswordHash(password), email, true)
+	_, err = conn.Exec(context.Background(),
+		`INSERT INTO "public"."users" ("username","password","email", "isValid") VALUES ($1, $2, $3, $4)`,
+		username,
+		GeneratePasswordHash(password),
+		email,
+		true)
 
 	if err != nil {
 		// log.Print(err)
 		return false, err
 	}
 
-	conn.Exec(context.Background(), `insert into public.friends ("friend","is_friend_of") values ((select id from public.users where username = $1), (select id from public.users where email= $2))`, username, referrer)
+	conn.Exec(context.Background(),
+		`insert into public.friends ("friend","is_friend_of") values ((select id from public.users where username = $1), (select id from public.users where email= $2))`,
+		username,
+		referrer)
 
 	return true, err
 
@@ -187,7 +191,7 @@ func SearchCourses(query SearchQuery) ([]Course, error) {
 	for i := range query.Query {
 		//TODO: SQL INJECTION SITE HERE!
 		aQuery := strings.TrimSpace(query.Query[i])
-		
+
 		if aQuery != "" {
 
 			//matches course subject lookup e.g. "CHM"
@@ -368,9 +372,9 @@ func DeleteSelectedCourses(courses []string, username string) (bool, error) {
 
 }
 
-func getCourseSubjects() ([]CourseSubjects, error) {
+func getCourseSubjects() ([]CourseSubject, error) {
 
-	var csubj []CourseSubjects
+	var csubj []CourseSubject
 	conn := openConnection()
 	defer conn.Close(context.Background())
 
@@ -382,13 +386,35 @@ func getCourseSubjects() ([]CourseSubjects, error) {
 	}
 
 	for rows.Next() {
-		var subject CourseSubjects
+		var subject CourseSubject
 		rows.Scan(&subject.Subject, &subject.Title)
 		log.Print(subject)
 		csubj = append(csubj, subject)
 	}
 
 	return csubj, nil
+}
+
+func getTerms() ([]Term, error) {
+	var terms []Term
+
+	conn := openConnection()
+	defer conn.Close(context.Background())
+
+	rows, err := conn.Query(context.Background(), `SELECT termcode, title from terms`)
+
+	if err != nil {
+		log.Print(err)
+		return terms, err
+	}
+
+	for rows.Next() {
+		var term Term
+		rows.Scan(&term.Code, &term.Title)
+		terms = append(terms, term)
+	}
+
+	return terms, nil
 }
 
 func returnCourses(rows pgx.Rows) []Course {

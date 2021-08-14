@@ -22,6 +22,7 @@ func main() {
 	r.HandleFunc("/commit", selectedCoursesHandler).Methods("GET")
 	r.HandleFunc("/commit", deleteSelectedCoursesHandler).Methods("DELETE")
 	r.HandleFunc("/options", getCourseOptionsHandler).Methods("GET")
+	r.HandleFunc("/terms", getTermsHandler).Methods("GET")
 
 	//DEV: this will be removed once I figure out a better way to have a dev version
 	allowedOrigins := handlers.AllowedOrigins([]string{"http://courseadvysr.com",
@@ -145,6 +146,25 @@ func courseHandler(w http.ResponseWriter, r *http.Request) {
 	enc.Encode(returnedInfo)
 }
 
+func getTermsHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("token")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	_, err = CheckToken(c.Value)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	enc := json.NewEncoder(w)
+	terms, _ := getTerms()
+	enc.Encode(terms)
+
+}
+
 func crnCourseHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie("token")
 	if err != nil {
@@ -248,7 +268,7 @@ func commitCoursesHandler(w http.ResponseWriter, r *http.Request) {
 
 	commit, err := CommitSelectedCourses(courseSelections.Data, username)
 
-	if commit != true || err != nil {
+	if !commit || err != nil {
 		log.Print(err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}

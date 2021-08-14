@@ -31,7 +31,7 @@ type params struct {
 }
 
 func main() {
-	fmt.Println(GeneratePasswordHash(""))
+	fmt.Println(GeneratePasswordHash("hello"))
 }
 
 //GeneratePasswordHash generates the hash of the password and sends it to the db

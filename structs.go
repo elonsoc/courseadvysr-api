@@ -21,9 +21,14 @@ type Course struct {
 	TimeUpdated              float32  `json:"timeUpdated"`
 }
 
-type CourseSubjects struct {
+type CourseSubject struct {
 	Subject string `json:"subject"`
 	Title   string `json:"title"`
+}
+
+type Term struct {
+	Title string `json:"title"`
+	Code  string `json:"code"`
 }
 
 type UserCredentials struct {
