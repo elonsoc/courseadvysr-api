@@ -83,7 +83,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			Value: token, Path: "/", Expires: expTime})
 
 	} else {
-		w.WriteHeader(http.StatusUnauthorized)
+		w.WriteHeader(http.StatusForbidden)
 		return
 	}
 
