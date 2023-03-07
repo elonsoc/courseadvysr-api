@@ -10,8 +10,6 @@ require (
 	github.com/jackc/pgx/v4 v4.11.0
 	github.com/o1egl/paseto v1.0.0
 	github.com/pkg/errors v0.9.1 // indirect
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
-	golang.org/x/sys v0.0.0-20210423082822-04245dca01da // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/crypto v0.1.0
 
 )
